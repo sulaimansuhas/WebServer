@@ -108,8 +108,9 @@ int main(void)
     while(1){
         //epoll here blocks indefinitely. Should be ok
         struct epoll_event events[EPOLL_MAXEVENTS];
-        int n = epoll_wait(poller, events, EPOLL_MAXEVENTS, -1);
-        printf("number of events:%d\n", n);
+        int n = epoll_wait(poller, events, EPOLL_MAXEVENTS, 0);
+        // printf("Listening Socket at:%d\n", sockfd);
+        // printf("number of events:%d\n", n);
         int i ;
         for(i = 0; i<n; i++){
             printf("have entered the loop\n");
@@ -128,7 +129,7 @@ int main(void)
                 }
             }
             else{
-                if ( (new_fd = events[i].data.fd) < 0)
+                if ( ( events[i].data.fd) < 0)
                     continue;
                 printf("non listening socket %d called\n", events[i].data.fd);
                 char buffer[30000]={0};
