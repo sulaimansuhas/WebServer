@@ -1,2 +1,2 @@
 make: server.c
-	gcc -o server server.c -g
+	gcc -o server server.c -g -pthread

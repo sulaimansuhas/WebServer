@@ -11,10 +11,20 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/epoll.h>
+#include<pthread.h>
 
 #define PORT "3490"
 #define BACKLOG 10
 #define EPOLL_MAXEVENTS 10
+#define num_threads 1
+
+pthread_t epoll_threads[num_threads];
+char *header = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello world!";
+
+struct thread_args{
+	int epoller;
+	int listening_socket;
+};
 
 void *get_in_addr(struct sockaddr *sa){
     if (sa->sa_family == AF_INET){
@@ -33,79 +43,20 @@ int epoll_register(int events, int efd, int sock){
     return 1;
 }
 
+void *test_func(void *_args){
+    struct thread_args *args = (struct thread_args *) _args;
+    printf("Epoll fd:%d\n", args->epoller);
+    printf("Listening Socket at:%d\n", args->listening_socket);
 
-int main(void)
-{
-    int poller;
-    int sockfd, new_fd;
-    struct addrinfo hints, *servinfo, *p; //servinfo and p are pointers to addrinfo structs
-    struct sockaddr_storage their_addr;
-    socklen_t sin_size;
-    struct sigaction sa;
-    int yes = 1;
+}
+void *thread_func(void *_args){
+    struct thread_args *args = (struct thread_args *) _args;
+    int poller = args->epoller;
+    int sockfd = args->listening_socket;
+    int new_fd;
     char s[INET6_ADDRSTRLEN];
-    int rv;
-    memset(&hints,0,sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-
-
-
-    // char *header = "HTTP/1.1 200 OK\r\n\r\n";
-    char *header = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello world!";
-
-
-
-    if((poller = epoll_create1(0))==0){
-            perror("epoll creation");
-    }
-
-    if((rv = getaddrinfo(NULL, PORT, &hints, &servinfo))!=0){ //deals with the error case with getaddrinfo()
-        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-        return 1;
-    }
-
-    //loop through all results and bind to the first one we can, as servinfo should be returned as a linked list
-
-    for(p = servinfo ; p!=NULL;p = p->ai_next){
-        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol))==-1){
-           perror("server:socket"); 
-           continue;
-        }
-        if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)))==-1){
-            perror("setsockopt");
-            exit(1);
-        }
-
-        if (bind(sockfd, p->ai_addr, p -> ai_addrlen)==-1){
-            close(sockfd);
-            perror("server:bind");
-            continue;
-        }
-        
-        break;
-    } // p->ai_next is the equivalent of doing (*p).ai_next (remember that p is a pointer)
-    
-    freeaddrinfo(servinfo);
-    if(epoll_register(EPOLLIN, poller, sockfd) == 0){
-            perror("epoll add");
-            exit(1);
-        }
-
-    if(p==NULL) {
-        fprintf(stderr, "server: failed to bind\n");
-        exit(1);
-    }
-
-    if((listen(sockfd, BACKLOG))==-1){
-        perror("listen");
-        exit(1);
-    }
-    printf("server: waiting for connections ... \n");
-    //line below is for dead process but I didn't make a helper function for it 
-    //sigempty(&sa.sa_mask) 
-    while(1){
+    struct sockaddr_storage their_addr;
+    socklen_t sin_size; while(1){
         //epoll here blocks indefinitely. Should be ok
         struct epoll_event events[EPOLL_MAXEVENTS];
         int n = epoll_wait(poller, events, EPOLL_MAXEVENTS, 0);
@@ -161,6 +112,134 @@ int main(void)
             }
         }
     }
-
-
 }
+
+
+int main(void)
+{
+    int poller;
+    int sockfd, new_fd;
+    struct addrinfo hints, *servinfo, *p; //servinfo and p are pointers to addrinfo structs
+    socklen_t sin_size;
+    struct sigaction sa;
+    int yes = 1;
+    int rv;
+    memset(&hints,0,sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+
+
+    // char *header = "HTTP/1.1 200 OK\r\n\r\n";
+
+
+
+    if((poller = epoll_create1(0))==0){
+            perror("epoll creation");
+    }
+
+    if((rv = getaddrinfo(NULL, PORT, &hints, &servinfo))!=0){ //deals with the error case with getaddrinfo()
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        return 1;
+    }
+
+    //loop through all results and bind to the first one we can, as servinfo should be returned as a linked list
+
+    for(p = servinfo ; p!=NULL;p = p->ai_next){
+        if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol))==-1){
+           perror("server:socket"); 
+           continue;
+        }
+        if ((setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)))==-1){
+            perror("setsockopt");
+            exit(1);
+        }
+
+        if (bind(sockfd, p->ai_addr, p -> ai_addrlen)==-1){
+            close(sockfd);
+            perror("server:bind");
+            continue;
+        }
+        
+        break;
+    } // p->ai_next is the equivalent of doing (*p).ai_next (remember that p is a pointer)
+    
+    freeaddrinfo(servinfo);
+    if(epoll_register(EPOLLIN, poller, sockfd) == 0){
+            perror("epoll add");
+            exit(1);
+        }
+
+    if(p==NULL) {
+        fprintf(stderr, "server: failed to bind\n");
+        exit(1);
+    }
+
+    if((listen(sockfd, BACKLOG))==-1){
+        perror("listen");
+        exit(1);
+    }
+    printf("%d\n", poller);        
+    printf("%d\n", sockfd);
+    struct thread_args *serverargs = calloc(1,sizeof(struct thread_args));
+    serverargs->epoller = poller;                            
+    serverargs->listening_socket = sockfd;                   
+    printf("%d\n", serverargs->epoller);        
+    printf("%d\n", serverargs->listening_socket);
+    printf("server: waiting for connections ... \n");        
+    for(int i = 0; i <num_threads; i++){                     
+	    pthread_create(&epoll_threads[i],NULL, thread_func , serverargs);
+    } 
+    for(int i = 0; i <num_threads; i++){
+        pthread_join(epoll_threads[i], NULL);
+    }        
+    //line below is for dead process but I didn't make a hel per function for it 
+    //sigempty(&sa.sa_mask)                                  
+                                                             
+                                                             
+}                                                            
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
+                                                             
