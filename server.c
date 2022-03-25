@@ -16,7 +16,7 @@
 #define PORT "3490"
 #define BACKLOG 10
 #define EPOLL_MAXEVENTS 10
-#define num_threads 1
+#define num_threads 10
 
 pthread_t epoll_threads[num_threads];
 char *header = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello world!";
@@ -87,7 +87,7 @@ void *thread_func(void *_args){
                 int nbr;
                 if((nbr = read(events[i].data.fd, buffer, 30000))==-1){
                     if(errno == ECONNRESET){
-                        close(new_fd);
+                        close(events[i].data.fd);
                         events[i].data.fd = -1;
                     }
                     else{
@@ -96,7 +96,8 @@ void *thread_func(void *_args){
                     }
                 }
                 else if(nbr == 0){
-                    close(new_fd);
+                    close(events[i].data.fd);
+		    //possibly can remove this
                     events[i].data.fd = -1;
                 }
                 printf("bytes read:%d\n", nbr);
@@ -104,7 +105,7 @@ void *thread_func(void *_args){
                 printf("---------------------\n");
                 printf("sending back: %s\n", header);
                 int nbs;
-                nbs = send(events[i].data.fd,header, strlen(header), 0);
+                nbs = send(events[i].data.fd,header, 77, 0);
                 // printf("number of bytes sent: %d\n\n", nbs);
                 printf("%d is the size of the header\n",(int)(strlen(header)));
                 // write(events[i].data.fd, header, strlen(header));
@@ -199,47 +200,3 @@ int main(void)
                                                              
                                                              
 }                                                            
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
-                                                             
