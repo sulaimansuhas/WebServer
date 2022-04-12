@@ -14,9 +14,9 @@
 #include<pthread.h>
 
 #define PORT "3490"
-#define BACKLOG 10
-#define EPOLL_MAXEVENTS 10
-#define num_threads 10
+#define BACKLOG SOMAXCONN
+#define EPOLL_MAXEVENTS 2048
+#define num_threads 1
 
 pthread_t epoll_threads[num_threads];
 char *header = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello world!";
